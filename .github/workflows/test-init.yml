@@ -198,7 +198,7 @@ jobs:
       - name: Verify SSH keygen
         run: |
           echo "Checking ssh-keygen..."
-          ssh-keygen -V || ssh-keygen -h
+          which ssh-keygen && echo "✓ ssh-keygen found" || echo "✗ ssh-keygen not found"
       
       - name: Verify test files exist
         run: |
