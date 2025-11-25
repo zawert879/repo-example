@@ -361,15 +361,14 @@ jobs:
           echo "Testing complete init workflow simulation..."
           
           # Simulate key generation
+          mkdir -p .keys
           age-keygen -o .keys/age.key 2>/dev/null || true
           
           # Simulate secrets.env creation
           if [ -f .keys/age.key ]; then
             PRIVATE_KEY=$(grep "AGE-SECRET-KEY" .keys/age.key)
-            cat > secrets.env << EOF
-# SOPS Age Private Key
-SOPS_AGE_KEY=$PRIVATE_KEY
-EOF
+            echo "# SOPS Age Private Key" > secrets.env
+            echo "SOPS_AGE_KEY=$PRIVATE_KEY" >> secrets.env
             echo "✓ secrets.env created"
           fi
           
@@ -393,8 +392,29 @@ EOF
     if: always()
     
     steps:
-      - name: Download all artifacts
+      - name: Download Windows test results
+        if: always()
         uses: actions/download-artifact@v3
+        continue-on-error: true
+        with:
+          name: windows-test-results
+          path: artifacts/windows
+      
+      - name: Download Linux test results
+        if: always()
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        with:
+          name: linux-test-results
+          path: artifacts/linux
+      
+      - name: Download macOS test results
+        if: always()
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        with:
+          name: macos-test-results
+          path: artifacts/macos
       
       - name: Generate report
         run: |
@@ -408,10 +428,10 @@ EOF
           echo "- Integration Tests: ${{ needs.integration-test.result }}" >> report.md
           echo "" >> report.md
           
-          if [ "${{ needs.test-windows.result }}" == "success" ] && \
-             [ "${{ needs.test-linux.result }}" == "success" ] && \
-             [ "${{ needs.test-macos.result }}" == "success" ] && \
-             [ "${{ needs.integration-test.result }}" == "success" ]; then
+          if [ "${{ needs.test-windows.result }}" = "success" ] && \
+             [ "${{ needs.test-linux.result }}" = "success" ] && \
+             [ "${{ needs.test-macos.result }}" = "success" ] && \
+             [ "${{ needs.integration-test.result }}" = "success" ]; then
             echo "✅ All tests passed!" >> report.md
           else
             echo "❌ Some tests failed. Please review the logs." >> report.md
