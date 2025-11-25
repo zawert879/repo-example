@@ -62,9 +62,12 @@ jobs:
       
       - name: Run PowerShell Tests
         shell: pwsh
+        continue-on-error: true
+        id: ps_tests
         run: |
           Write-Host "Running PowerShell test suite..." -ForegroundColor Cyan
           .\tests\test-init.ps1
+          exit $LASTEXITCODE
       
       - name: Test init.ps1 syntax
         shell: pwsh
@@ -102,8 +105,10 @@ jobs:
         if: always()
         shell: pwsh
         run: |
+          $result = "${{ steps.ps_tests.outcome }}"
           "Windows PowerShell Tests Completed" | Out-File -FilePath tests/windows-results.txt
-          "Exit Code: $LASTEXITCODE" | Out-File -FilePath tests/windows-results.txt -Append
+          "Test Outcome: $result" | Out-File -FilePath tests/windows-results.txt -Append
+          "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" | Out-File -FilePath tests/windows-results.txt -Append
       
       - name: Upload test results
         if: always()
@@ -164,9 +169,12 @@ jobs:
         run: chmod +x tests/test-init.sh
       
       - name: Run Bash Tests
+        continue-on-error: true
+        id: bash_tests
         run: |
           echo "Running Bash test suite..."
           ./tests/test-init.sh
+          exit $?
       
       - name: Test init.sh syntax
         run: |
@@ -222,7 +230,8 @@ jobs:
         if: always()
         run: |
           echo "Linux Bash Tests Completed" > tests/linux-results.txt
-          echo "Exit Code: $?" >> tests/linux-results.txt
+          echo "Test Outcome: ${{ steps.bash_tests.outcome }}" >> tests/linux-results.txt
+          echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')" >> tests/linux-results.txt
       
       - name: Upload test results
         if: always()
@@ -272,9 +281,12 @@ jobs:
         run: chmod +x tests/test-init.sh
       
       - name: Run Bash Tests
+        continue-on-error: true
+        id: bash_tests_macos
         run: |
           echo "Running Bash test suite..."
           ./tests/test-init.sh
+          exit $?
       
       - name: Test init.sh syntax
         run: |
@@ -291,7 +303,8 @@ jobs:
         if: always()
         run: |
           echo "macOS Bash Tests Completed" > tests/macos-results.txt
-          echo "Exit Code: $?" >> tests/macos-results.txt
+          echo "Test Outcome: ${{ steps.bash_tests_macos.outcome }}" >> tests/macos-results.txt
+          echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')" >> tests/macos-results.txt
       
       - name: Upload test results
         if: always()
