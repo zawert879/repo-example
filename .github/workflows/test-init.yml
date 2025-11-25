@@ -98,15 +98,24 @@ jobs:
           }
           if (-not $allGood) { exit 1 }
       
+      - name: Create test result file
+        if: always()
+        shell: pwsh
+        run: |
+          "Windows PowerShell Tests Completed" | Out-File -FilePath tests/windows-results.txt
+          "Exit Code: $LASTEXITCODE" | Out-File -FilePath tests/windows-results.txt -Append
+      
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-test-results
           path: |
+            tests/windows-results.txt
             tests/*.log
             tests/*.xml
           retention-days: 7
+          if-no-files-found: warn
 
   test-linux:
     name: Test on Linux
@@ -209,15 +218,23 @@ jobs:
             echo "⚠ Some scripts have ShellCheck warnings (not failing build)"
           fi
       
+      - name: Create test result file
+        if: always()
+        run: |
+          echo "Linux Bash Tests Completed" > tests/linux-results.txt
+          echo "Exit Code: $?" >> tests/linux-results.txt
+      
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: linux-test-results
           path: |
+            tests/linux-results.txt
             tests/*.log
             tests/*.xml
           retention-days: 7
+          if-no-files-found: warn
 
   test-macos:
     name: Test on macOS
@@ -270,15 +287,23 @@ jobs:
             exit 1
           fi
       
+      - name: Create test result file
+        if: always()
+        run: |
+          echo "macOS Bash Tests Completed" > tests/macos-results.txt
+          echo "Exit Code: $?" >> tests/macos-results.txt
+      
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: macos-test-results
           path: |
+            tests/macos-results.txt
             tests/*.log
             tests/*.xml
           retention-days: 7
+          if-no-files-found: warn
 
   integration-test:
     name: Integration Test
