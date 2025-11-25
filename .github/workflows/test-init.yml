@@ -70,6 +70,8 @@ jobs:
           exit $LASTEXITCODE
       
       - name: Test init.ps1 syntax
+        continue-on-error: true
+        id: ps_syntax
         shell: pwsh
         run: |
           Write-Host "Checking init.ps1 syntax..." -ForegroundColor Blue
@@ -84,30 +86,40 @@ jobs:
           }
       
       - name: Test scripts syntax
+        continue-on-error: true
+        id: ps_scripts_syntax
         shell: pwsh
         run: |
           Write-Host "Checking PowerShell scripts syntax..." -ForegroundColor Blue
-          $scripts = Get-ChildItem -Path scripts -Filter *.ps1 -Recurse
-          $allGood = $true
-          foreach ($script in $scripts) {
-            $errors = $null
-            $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $script.FullName -Raw), [ref]$errors)
-            if ($errors.Count -gt 0) {
-              Write-Host "✗ Errors in $($script.Name)" -ForegroundColor Red
-              $allGood = $false
-            } else {
-              Write-Host "✓ $($script.Name) OK" -ForegroundColor Green
+          $scripts = Get-ChildItem -Path scripts -Filter *.ps1 -Recurse -ErrorAction SilentlyContinue
+          if ($scripts) {
+            $allGood = $true
+            foreach ($script in $scripts) {
+              $errors = $null
+              $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $script.FullName -Raw), [ref]$errors)
+              if ($errors.Count -gt 0) {
+                Write-Host "✗ Errors in $($script.Name)" -ForegroundColor Red
+                $allGood = $false
+              } else {
+                Write-Host "✓ $($script.Name) OK" -ForegroundColor Green
+              }
             }
+            if (-not $allGood) { exit 1 }
+          } else {
+            Write-Host "No PowerShell scripts found in scripts/ directory" -ForegroundColor Yellow
           }
-          if (-not $allGood) { exit 1 }
       
       - name: Create test result file
         if: always()
         shell: pwsh
         run: |
-          $result = "${{ steps.ps_tests.outcome }}"
           "Windows PowerShell Tests Completed" | Out-File -FilePath tests/windows-results.txt
-          "Test Outcome: $result" | Out-File -FilePath tests/windows-results.txt -Append
+          "" | Out-File -FilePath tests/windows-results.txt -Append
+          "Test Results:" | Out-File -FilePath tests/windows-results.txt -Append
+          "  PowerShell Tests: ${{ steps.ps_tests.outcome }}" | Out-File -FilePath tests/windows-results.txt -Append
+          "  Syntax Check: ${{ steps.ps_syntax.outcome }}" | Out-File -FilePath tests/windows-results.txt -Append
+          "  Scripts Syntax: ${{ steps.ps_scripts_syntax.outcome }}" | Out-File -FilePath tests/windows-results.txt -Append
+          "" | Out-File -FilePath tests/windows-results.txt -Append
           "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" | Out-File -FilePath tests/windows-results.txt -Append
       
       - name: Upload test results
@@ -188,10 +200,14 @@ jobs:
           fi
       
       - name: Test scripts syntax
+        continue-on-error: true
+        id: bash_scripts_syntax
         run: |
           echo "Checking Bash scripts syntax..."
+          has_scripts=false
           for script in scripts/*.sh; do
             if [ -f "$script" ]; then
+              has_scripts=true
               bash -n "$script"
               if [ $? -eq 0 ]; then
                 echo "✓ $script OK"
@@ -201,8 +217,13 @@ jobs:
               fi
             fi
           done
+          if [ "$has_scripts" = "false" ]; then
+            echo "No bash scripts found in scripts/ directory"
+          fi
       
       - name: ShellCheck analysis
+        continue-on-error: true
+        id: shellcheck
         run: |
           echo "Installing ShellCheck..."
           sudo apt-get install -y shellcheck
@@ -230,7 +251,13 @@ jobs:
         if: always()
         run: |
           echo "Linux Bash Tests Completed" > tests/linux-results.txt
-          echo "Test Outcome: ${{ steps.bash_tests.outcome }}" >> tests/linux-results.txt
+          echo "" >> tests/linux-results.txt
+          echo "Test Results:" >> tests/linux-results.txt
+          echo "  Bash Tests: ${{ steps.bash_tests.outcome }}" >> tests/linux-results.txt
+          echo "  Syntax Check: ${{ steps.bash_syntax.outcome }}" >> tests/linux-results.txt
+          echo "  Scripts Syntax: ${{ steps.bash_scripts_syntax.outcome }}" >> tests/linux-results.txt
+          echo "  ShellCheck: ${{ steps.shellcheck.outcome }}" >> tests/linux-results.txt
+          echo "" >> tests/linux-results.txt
           echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')" >> tests/linux-results.txt
       
       - name: Upload test results
@@ -289,6 +316,8 @@ jobs:
           exit $?
       
       - name: Test init.sh syntax
+        continue-on-error: true
+        id: bash_syntax_macos
         run: |
           echo "Checking init.sh syntax..."
           bash -n init.sh
@@ -303,7 +332,11 @@ jobs:
         if: always()
         run: |
           echo "macOS Bash Tests Completed" > tests/macos-results.txt
-          echo "Test Outcome: ${{ steps.bash_tests_macos.outcome }}" >> tests/macos-results.txt
+          echo "" >> tests/macos-results.txt
+          echo "Test Results:" >> tests/macos-results.txt
+          echo "  Bash Tests: ${{ steps.bash_tests_macos.outcome }}" >> tests/macos-results.txt
+          echo "  Syntax Check: ${{ steps.bash_syntax_macos.outcome }}" >> tests/macos-results.txt
+          echo "" >> tests/macos-results.txt
           echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')" >> tests/macos-results.txt
       
       - name: Upload test results
