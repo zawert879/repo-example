@@ -441,9 +441,16 @@ jobs:
             PUBLIC_KEY=$(grep "public key:" test.key | cut -d: -f2 | xargs)
             echo "Public key: $PUBLIC_KEY"
             
+            # Create temporary SOPS config
+            cat > .sops.yaml << EOF
+          creation_rules:
+            - path_regex: \.env$|\.encrypted$
+              age: $PUBLIC_KEY
+          EOF
+            
             # Test encryption
             echo "TEST_SECRET=test_value" > test.env
-            SOPS_AGE_RECIPIENTS=$PUBLIC_KEY sops -e test.env > test.env.encrypted
+            sops -e test.env > test.env.encrypted
             
             if [ -f test.env.encrypted ]; then
               echo "✓ SOPS encryption successful"
