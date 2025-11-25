@@ -3,7 +3,7 @@ name: Deploy to Docker Swarm
 on:
   push:
     branches:
-      - main
+      - main-go
     paths:
       - 'stacks/**'
       - '.github/workflows/deploy.yml'

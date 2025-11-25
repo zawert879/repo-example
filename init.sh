@@ -276,7 +276,7 @@ if [ "$REPO_TYPE" = "server" ]; then
         
         echo -e "${GREEN}✓ SSH key pair generated${NC}"
         echo -e "${CYAN}Public key:${NC}"
-        cat .ssh-keys/id_ed25519.pub
+        cat ".ssh-keys/$SSH_KEY_FILE.pub"
         echo ""
         echo -e "${YELLOW}⚠ Add this public key to your deployment server${NC}"
         echo ""
@@ -287,21 +287,32 @@ if [ "$REPO_TYPE" = "server" ]; then
             
             export SOPS_AGE_KEY="$PRIVATE_KEY"
             
+            # Запрос деталей сервера
+            read -p "Enter deployment server IP/hostname: " SSH_HOST_INPUT
+            read -p "Enter SSH username (default: deploy): " SSH_USER_INPUT
+            SSH_USER_INPUT=${SSH_USER_INPUT:-deploy}
+            read -p "Enter SSH port (default: 22): " SSH_PORT_INPUT
+            SSH_PORT_INPUT=${SSH_PORT_INPUT:-22}
+            
             # Создаем файл для шифрования
-            cat > .ssh-temp << EOF
-SSH_PRIVATE_KEY="$(cat .ssh-keys/id_ed25519)"
-SSH_HOST="${SSH_HOST_INPUT:-your-server-ip}"
-SSH_USERNAME="${SSH_USER_INPUT}"
-SSH_PORT="${SSH_PORT_INPUT}"
+            TEMP_FILE=".ssh-temp-$$"
+            cat > "$TEMP_FILE" << EOF
+SSH_PRIVATE_KEY="$(cat .ssh-keys/$SSH_KEY_FILE)"
+SSH_HOST="$SSH_HOST_INPUT"
+SSH_USERNAME="$SSH_USER_INPUT"
+SSH_PORT="$SSH_PORT_INPUT"
 EOF
             
-            sops -e .ssh-temp > .ssh.encrypted
-            rm -f .ssh-temp
-            
-            # Удаляем незашифрованные ключи
-            rm -rf .ssh-keys
-            
-            echo -e "${GREEN}✓ SSH keys encrypted and stored in .ssh.encrypted${NC}"
+            # Шифруем с SOPS
+            if sops -e "$TEMP_FILE" > .ssh.encrypted 2>/dev/null; then
+                rm -f "$TEMP_FILE"
+                rm -rf .ssh-keys
+                echo -e "${GREEN}✓ SSH keys encrypted and stored in .ssh.encrypted${NC}"
+                echo -e "${GREEN}✓ Unencrypted keys removed${NC}"
+            else
+                echo -e "${RED}Error encrypting SSH keys with SOPS${NC}"
+                rm -f "$TEMP_FILE"
+            fi
             echo -e "${GREEN}✓ Unencrypted keys removed${NC}"
         else
             echo -e "${YELLOW}⚠ SSH keys stored unencrypted in .ssh-keys/${NC}"
@@ -347,6 +358,7 @@ EOF
 SOPS_AGE_KEY=$PRIVATE_KEY
 EOF
         echo -e "${GREEN}✓ secrets.env created with your SOPS key${NC}"
+        echo -e "${CYAN}  Location: $(pwd)/secrets.env${NC}"
         
         # Автоматическая настройка через GitHub CLI
         if command -v gh &> /dev/null; then
@@ -370,6 +382,7 @@ EOF
     else
         cp secrets.example.env secrets.env
         echo -e "${GREEN}✓ secrets.env created from template${NC}"
+        echo -e "${CYAN}  Location: $(pwd)/secrets.env${NC}"
         echo -e "${YELLOW}⚠ Edit secrets.env and add your SOPS Age key${NC}"
     fi
     

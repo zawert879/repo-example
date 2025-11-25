@@ -1,0 +1,427 @@
+name: Test Init Scripts
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'init.ps1'
+      - 'init.sh'
+      - 'scripts/**'
+      - 'tests/**'
+      - '.github/workflows/test-init.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'init.ps1'
+      - 'init.sh'
+      - 'scripts/**'
+      - 'tests/**'
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    name: Test on Windows
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup PowerShell
+        shell: pwsh
+        run: |
+          Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)" -ForegroundColor Cyan
+          Write-Host "OS: $([System.Environment]::OSVersion.VersionString)" -ForegroundColor Cyan
+      
+      - name: Install Age (encryption tool)
+        shell: pwsh
+        run: |
+          Write-Host "Installing Age..." -ForegroundColor Blue
+          choco install age -y --no-progress
+          age-keygen --version
+      
+      - name: Install SOPS (secrets encryption)
+        shell: pwsh
+        run: |
+          Write-Host "Installing SOPS..." -ForegroundColor Blue
+          choco install sops -y --no-progress
+          sops --version
+      
+      - name: Install GitHub CLI
+        shell: pwsh
+        run: |
+          Write-Host "Installing GitHub CLI..." -ForegroundColor Blue
+          choco install gh -y --no-progress
+          gh --version
+      
+      - name: Verify SSH keygen
+        shell: pwsh
+        run: |
+          Write-Host "Checking ssh-keygen..." -ForegroundColor Blue
+          ssh-keygen -V
+      
+      - name: Run PowerShell Tests
+        shell: pwsh
+        run: |
+          Write-Host "Running PowerShell test suite..." -ForegroundColor Cyan
+          .\tests\test-init.ps1
+      
+      - name: Test init.ps1 syntax
+        shell: pwsh
+        run: |
+          Write-Host "Checking init.ps1 syntax..." -ForegroundColor Blue
+          $errors = $null
+          $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content .\init.ps1 -Raw), [ref]$errors)
+          if ($errors.Count -gt 0) {
+            Write-Host "Syntax errors found in init.ps1:" -ForegroundColor Red
+            $errors | ForEach-Object { Write-Host $_.Message -ForegroundColor Red }
+            exit 1
+          } else {
+            Write-Host "✓ No syntax errors in init.ps1" -ForegroundColor Green
+          }
+      
+      - name: Test scripts syntax
+        shell: pwsh
+        run: |
+          Write-Host "Checking PowerShell scripts syntax..." -ForegroundColor Blue
+          $scripts = Get-ChildItem -Path scripts -Filter *.ps1 -Recurse
+          $allGood = $true
+          foreach ($script in $scripts) {
+            $errors = $null
+            $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $script.FullName -Raw), [ref]$errors)
+            if ($errors.Count -gt 0) {
+              Write-Host "✗ Errors in $($script.Name)" -ForegroundColor Red
+              $allGood = $false
+            } else {
+              Write-Host "✓ $($script.Name) OK" -ForegroundColor Green
+            }
+          }
+          if (-not $allGood) { exit 1 }
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-test-results
+          path: |
+            tests/*.log
+            tests/*.xml
+          retention-days: 7
+
+  test-linux:
+    name: Test on Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup environment
+        run: |
+          echo "Bash Version: $BASH_VERSION"
+          echo "OS: $(uname -a)"
+      
+      - name: Install Age (encryption tool)
+        run: |
+          echo "Installing Age..."
+          wget -q https://github.com/FiloSottile/age/releases/download/v1.1.1/age-v1.1.1-linux-amd64.tar.gz
+          tar xzf age-v1.1.1-linux-amd64.tar.gz
+          sudo mv age/age* /usr/local/bin/
+          age-keygen --version
+      
+      - name: Install SOPS (secrets encryption)
+        run: |
+          echo "Installing SOPS..."
+          wget -q https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          sudo mv sops-v3.8.1.linux.amd64 /usr/local/bin/sops
+          sudo chmod +x /usr/local/bin/sops
+          sops --version
+      
+      - name: Install GitHub CLI
+        run: |
+          echo "Installing GitHub CLI..."
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y gh
+          gh --version
+      
+      - name: Verify SSH keygen
+        run: |
+          echo "Checking ssh-keygen..."
+          ssh-keygen -V || ssh-keygen -h
+      
+      - name: Make test script executable
+        run: chmod +x tests/test-init.sh
+      
+      - name: Run Bash Tests
+        run: |
+          echo "Running Bash test suite..."
+          ./tests/test-init.sh
+      
+      - name: Test init.sh syntax
+        run: |
+          echo "Checking init.sh syntax..."
+          bash -n init.sh
+          if [ $? -eq 0 ]; then
+            echo "✓ No syntax errors in init.sh"
+          else
+            echo "✗ Syntax errors found in init.sh"
+            exit 1
+          fi
+      
+      - name: Test scripts syntax
+        run: |
+          echo "Checking Bash scripts syntax..."
+          for script in scripts/*.sh; do
+            if [ -f "$script" ]; then
+              bash -n "$script"
+              if [ $? -eq 0 ]; then
+                echo "✓ $script OK"
+              else
+                echo "✗ Errors in $script"
+                exit 1
+              fi
+            fi
+          done
+      
+      - name: ShellCheck analysis
+        run: |
+          echo "Installing ShellCheck..."
+          sudo apt-get install -y shellcheck
+          
+          echo "Running ShellCheck on all bash scripts..."
+          shellcheck_failed=0
+          
+          for script in init.sh scripts/*.sh tests/*.sh; do
+            if [ -f "$script" ]; then
+              echo "Checking $script..."
+              if shellcheck -x -S warning "$script"; then
+                echo "✓ $script passed ShellCheck"
+              else
+                echo "✗ $script has ShellCheck warnings"
+                shellcheck_failed=1
+              fi
+            fi
+          done
+          
+          if [ $shellcheck_failed -eq 1 ]; then
+            echo "⚠ Some scripts have ShellCheck warnings (not failing build)"
+          fi
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-test-results
+          path: |
+            tests/*.log
+            tests/*.xml
+          retention-days: 7
+
+  test-macos:
+    name: Test on macOS
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup environment
+        run: |
+          echo "Bash Version: $BASH_VERSION"
+          echo "OS: $(uname -a)"
+      
+      - name: Install dependencies via Homebrew
+        run: |
+          echo "Installing Age..."
+          brew install age
+          age-keygen --version
+          
+          echo "Installing SOPS..."
+          brew install sops
+          sops --version
+          
+          echo "Installing GitHub CLI..."
+          brew install gh
+          gh --version
+      
+      - name: Verify SSH keygen
+        run: |
+          echo "Checking ssh-keygen..."
+          ssh-keygen -V || ssh-keygen -h
+      
+      - name: Make test script executable
+        run: chmod +x tests/test-init.sh
+      
+      - name: Run Bash Tests
+        run: |
+          echo "Running Bash test suite..."
+          ./tests/test-init.sh
+      
+      - name: Test init.sh syntax
+        run: |
+          echo "Checking init.sh syntax..."
+          bash -n init.sh
+          if [ $? -eq 0 ]; then
+            echo "✓ No syntax errors in init.sh"
+          else
+            echo "✗ Syntax errors found in init.sh"
+            exit 1
+          fi
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-test-results
+          path: |
+            tests/*.log
+            tests/*.xml
+          retention-days: 7
+
+  integration-test:
+    name: Integration Test
+    needs: [test-windows, test-linux, test-macos]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          wget -q https://github.com/FiloSottile/age/releases/download/v1.1.1/age-v1.1.1-linux-amd64.tar.gz
+          tar xzf age-v1.1.1-linux-amd64.tar.gz
+          sudo mv age/age* /usr/local/bin/
+          
+          wget -q https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          sudo mv sops-v3.8.1.linux.amd64 /usr/local/bin/sops
+          sudo chmod +x /usr/local/bin/sops
+      
+      - name: Test SOPS Age key generation
+        run: |
+          echo "Testing Age key generation..."
+          age-keygen -o test.key
+          
+          if [ -f test.key ]; then
+            echo "✓ Age key generated successfully"
+            PUBLIC_KEY=$(grep "public key:" test.key | cut -d: -f2 | xargs)
+            echo "Public key: $PUBLIC_KEY"
+            
+            # Test encryption
+            echo "TEST_SECRET=test_value" > test.env
+            SOPS_AGE_RECIPIENTS=$PUBLIC_KEY sops -e test.env > test.env.encrypted
+            
+            if [ -f test.env.encrypted ]; then
+              echo "✓ SOPS encryption successful"
+              
+              # Test decryption
+              SOPS_AGE_KEY=$(grep "AGE-SECRET-KEY" test.key) sops -d test.env.encrypted > test.env.decrypted
+              
+              if grep -q "TEST_SECRET=test_value" test.env.decrypted; then
+                echo "✓ SOPS decryption successful"
+              else
+                echo "✗ SOPS decryption failed"
+                exit 1
+              fi
+            else
+              echo "✗ SOPS encryption failed"
+              exit 1
+            fi
+          else
+            echo "✗ Age key generation failed"
+            exit 1
+          fi
+      
+      - name: Test SSH key generation
+        run: |
+          echo "Testing SSH key generation..."
+          
+          # Test ed25519
+          ssh-keygen -t ed25519 -C "test@test" -f test_ed25519 -N ""
+          if [ -f test_ed25519 ] && [ -f test_ed25519.pub ]; then
+            echo "✓ ed25519 key generated successfully"
+          else
+            echo "✗ ed25519 key generation failed"
+            exit 1
+          fi
+          
+          # Test RSA
+          ssh-keygen -t rsa -b 4096 -C "test@test" -f test_rsa -N ""
+          if [ -f test_rsa ] && [ -f test_rsa.pub ]; then
+            echo "✓ RSA 4096 key generated successfully"
+          else
+            echo "✗ RSA key generation failed"
+            exit 1
+          fi
+      
+      - name: Test complete workflow
+        run: |
+          echo "Testing complete init workflow simulation..."
+          
+          # Simulate key generation
+          age-keygen -o .keys/age.key 2>/dev/null || true
+          
+          # Simulate secrets.env creation
+          if [ -f .keys/age.key ]; then
+            PRIVATE_KEY=$(grep "AGE-SECRET-KEY" .keys/age.key)
+            cat > secrets.env << EOF
+# SOPS Age Private Key
+SOPS_AGE_KEY=$PRIVATE_KEY
+EOF
+            echo "✓ secrets.env created"
+          fi
+          
+          # Verify structure
+          if [ -f secrets.env ] && [ -f .keys/age.key ]; then
+            echo "✓ Integration test passed"
+          else
+            echo "✗ Integration test failed"
+            exit 1
+          fi
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf test* .keys secrets.env
+
+  report:
+    name: Test Report
+    needs: [test-windows, test-linux, test-macos, integration-test]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      
+      - name: Generate report
+        run: |
+          echo "# Test Results Summary" > report.md
+          echo "" >> report.md
+          echo "## Test Status" >> report.md
+          echo "" >> report.md
+          echo "- Windows Tests: ${{ needs.test-windows.result }}" >> report.md
+          echo "- Linux Tests: ${{ needs.test-linux.result }}" >> report.md
+          echo "- macOS Tests: ${{ needs.test-macos.result }}" >> report.md
+          echo "- Integration Tests: ${{ needs.integration-test.result }}" >> report.md
+          echo "" >> report.md
+          
+          if [ "${{ needs.test-windows.result }}" == "success" ] && \
+             [ "${{ needs.test-linux.result }}" == "success" ] && \
+             [ "${{ needs.test-macos.result }}" == "success" ] && \
+             [ "${{ needs.integration-test.result }}" == "success" ]; then
+            echo "✅ All tests passed!" >> report.md
+          else
+            echo "❌ Some tests failed. Please review the logs." >> report.md
+          fi
+          
+          cat report.md
+      
+      - name: Upload report
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-report
+          path: report.md
+          retention-days: 30

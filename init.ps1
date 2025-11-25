@@ -243,17 +243,17 @@ if ($repoType -eq "server") {
         
         switch ($keyTypeChoice) {
             "1" {
-                ssh-keygen -t ed25519 -C "deploy@gitops" -f ".ssh-keys\id_ed25519" -N '""' -q
+                ssh-keygen -t ed25519 -C "deploy@gitops" -f ".ssh-keys\id_ed25519" -N `"`" 2>$null
                 $sshKeyFile = "id_ed25519"
                 Write-ColorOutput Green "✓ Generated ed25519 key"
             }
             "2" {
-                ssh-keygen -t rsa -b 4096 -C "deploy@gitops" -f ".ssh-keys\id_rsa" -N '""' -q
+                ssh-keygen -t rsa -b 4096 -C "deploy@gitops" -f ".ssh-keys\id_rsa" -N `"`" 2>$null
                 $sshKeyFile = "id_rsa"
                 Write-ColorOutput Green "✓ Generated RSA 4096 key"
             }
             default {
-                ssh-keygen -t ed25519 -C "deploy@gitops" -f ".ssh-keys\id_ed25519" -N '""' -q
+                ssh-keygen -t ed25519 -C "deploy@gitops" -f ".ssh-keys\id_ed25519" -N `"`" 2>$null
                 $sshKeyFile = "id_ed25519"
                 Write-ColorOutput Green "✓ Generated ed25519 key (default)"
             }
@@ -287,13 +287,23 @@ SSH_USERNAME="$sshUser"
 SSH_PORT="$sshPort"
 "@
             
-            $sshContent | Out-File ".ssh-temp" -Encoding UTF8 -NoNewline
-            sops -e .ssh-temp | Out-File ".ssh.encrypted" -Encoding UTF8
-            Remove-Item ".ssh-temp" -Force
-            Remove-Item ".ssh-keys" -Recurse -Force
+            # Создаем временный файл и шифруем
+            $tempFile = ".ssh-temp-" + (Get-Random)
+            $sshContent | Out-File $tempFile -Encoding UTF8 -NoNewline
             
-            Write-ColorOutput Green "✓ SSH keys encrypted and stored in .ssh.encrypted"
-            Write-ColorOutput Green "✓ Unencrypted keys removed"
+            # Шифруем с SOPS
+            $encryptedContent = sops -e $tempFile 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $encryptedContent | Out-File ".ssh.encrypted" -Encoding UTF8
+                Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+                Remove-Item ".ssh-keys" -Recurse -Force -ErrorAction SilentlyContinue
+                Write-ColorOutput Green "✓ SSH keys encrypted and stored in .ssh.encrypted"
+                Write-ColorOutput Green "✓ Unencrypted keys removed"
+            } else {
+                Write-ColorOutput Red "Error encrypting SSH keys with SOPS"
+                Write-ColorOutput Yellow "Error: $encryptedContent"
+                Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+            }
         } else {
             Write-ColorOutput Yellow "⚠ SSH keys stored unencrypted in .ssh-keys\"
             Write-ColorOutput Yellow "  Run '.\scripts\encrypt-ssh.ps1' to encrypt them later"
@@ -306,6 +316,7 @@ SSH_PORT="$sshPort"
         }
     } else {
         Write-ColorOutput Yellow "⚠ Skipping SSH key generation"
+        Write-ColorOutput Yellow "  You can generate SSH keys later with scripts\encrypt-ssh.ps1"
     }
     
     # 5. Удаление .git
@@ -332,11 +343,14 @@ SSH_PORT="$sshPort"
     Write-ColorOutput Blue "[7/8] GitHub Secrets Setup"
     
     if ($generateSops) {
-        @"
+        # Создаем secrets.env с SOPS ключом
+        $secretsContent = @"
 # SOPS Age Private Key
 SOPS_AGE_KEY=$privateKey
-"@ | Out-File "secrets.env" -Encoding UTF8
+"@
+        $secretsContent | Out-File "secrets.env" -Encoding UTF8 -Force
         Write-ColorOutput Green "✓ secrets.env created with your SOPS key"
+        Write-ColorOutput Cyan "  Location: $(Get-Location)\secrets.env"
         
         # Автоматическая настройка через GitHub CLI
         if (Get-Command gh -ErrorAction SilentlyContinue) {
@@ -359,8 +373,9 @@ SOPS_AGE_KEY=$privateKey
             Write-ColorOutput Yellow "⚠ Run '.\scripts\setup-github-secrets.ps1' to configure GitHub"
         }
     } else {
-        Copy-Item "secrets.example.env" "secrets.env"
+        Copy-Item "secrets.example.env" "secrets.env" -Force
         Write-ColorOutput Green "✓ secrets.env created from template"
+        Write-ColorOutput Cyan "  Location: $(Get-Location)\secrets.env"
         Write-ColorOutput Yellow "⚠ Edit secrets.env and add your SOPS Age key"
     }
     
