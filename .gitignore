@@ -5,6 +5,8 @@ secrets.env
 *.pem
 id_rsa
 id_rsa.pub
+.keys/
+.ssh-keys/
 
 # Расшифрованные файлы
 **/.env.decrypted

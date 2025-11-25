@@ -415,7 +415,6 @@ docs=(
     "README.md"
     "GITOPS.md"
     "EXAMPLE-APP.md"
-    "TROUBLESHOOTING.md"
 )
 
 for doc in "${docs[@]}"; do

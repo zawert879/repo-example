@@ -1,8 +1,8 @@
 creation_rules:
-  - path_regex: \.env\.encrypted$
+  - path_regex: \.env\.encrypted$|\.env$|secrets\.env$
     age: >-
       age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  - path_regex: \.ssh\.encrypted$
+  - path_regex: \.ssh\.encrypted$|\.ssh$
     age: >-
       age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   - path_regex: secrets\.encrypted\..*

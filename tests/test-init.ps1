@@ -328,7 +328,6 @@ $docs = @(
     "README.md",
     "GITOPS.md",
     "EXAMPLE-APP.md",
-    "TROUBLESHOOTING.md"
 )
 
 foreach ($doc in $docs) {
