@@ -1,0 +1,35 @@
+# Секретные файлы (незашифрованные)
+secrets.env
+.env
+*.key
+*.pem
+id_rsa
+id_rsa.pub
+
+# Расшифрованные файлы
+**/.env.decrypted
+**/secrets.decrypted.*
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# Временные файлы
+tmp/
+temp/

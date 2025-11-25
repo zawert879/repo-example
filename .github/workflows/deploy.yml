@@ -1,0 +1,128 @@
+name: Deploy to Docker Swarm
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'stacks/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      stacks: ${{ steps.changes.outputs.stacks }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed stacks
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # При ручном запуске деплоим все стеки
+            CHANGED_STACKS=$(ls -d stacks/*/ | xargs -n 1 basename | jq -R -s -c 'split("\n")[:-1]')
+          else
+            # Определяем изменённые стеки
+            CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+            CHANGED_STACKS=$(echo "$CHANGED_FILES" | grep '^stacks/' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')
+          fi
+          echo "stacks=$CHANGED_STACKS" >> $GITHUB_OUTPUT
+          echo "Changed stacks: $CHANGED_STACKS"
+
+  deploy:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.stacks != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        stack: ${{ fromJson(needs.detect-changes.outputs.stacks) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install SOPS
+        run: |
+          wget -q https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          sudo mv sops-v3.8.1.linux.amd64 /usr/local/bin/sops
+          sudo chmod +x /usr/local/bin/sops
+
+      - name: Setup SOPS Age key
+        run: |
+          mkdir -p ~/.config/sops/age
+          echo "${{ secrets.SOPS_AGE_KEY }}" > ~/.config/sops/age/keys.txt
+          chmod 600 ~/.config/sops/age/keys.txt
+
+      - name: Decrypt SSH credentials
+        run: |
+          sops -d .ssh.encrypted > /tmp/ssh_config
+          source /tmp/ssh_config
+          
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          
+          echo "SSH_HOST=$SSH_HOST" >> $GITHUB_ENV
+          echo "SSH_USERNAME=$SSH_USERNAME" >> $GITHUB_ENV
+          echo "SSH_PORT=${SSH_PORT:-22}" >> $GITHUB_ENV
+          
+          rm -f /tmp/ssh_config
+
+      - name: Deploy ${{ matrix.stack }} stack
+        run: |
+          STACK_NAME="${{ matrix.stack }}"
+          STACK_DIR="stacks/$STACK_NAME"
+          
+          if [ ! -d "$STACK_DIR" ]; then
+            echo "Stack directory $STACK_DIR not found, skipping"
+            exit 0
+          fi
+          
+          echo "Deploying stack: $STACK_NAME"
+          
+          # Расшифровка env файла если существует
+          if [ -f "$STACK_DIR/.env.encrypted" ]; then
+            sops -d "$STACK_DIR/.env.encrypted" > "/tmp/${STACK_NAME}.env"
+            ENV_FILE="/tmp/${STACK_NAME}.env"
+          else
+            ENV_FILE=""
+          fi
+          
+          # Копирование файлов на сервер
+          ssh -p $SSH_PORT $SSH_USERNAME@$SSH_HOST "mkdir -p /tmp/deploy/$STACK_NAME"
+          
+          if [ -n "$ENV_FILE" ]; then
+            scp -P $SSH_PORT "$ENV_FILE" $SSH_USERNAME@$SSH_HOST:"/tmp/deploy/$STACK_NAME/.env"
+          fi
+          
+          scp -P $SSH_PORT "$STACK_DIR/docker-compose.yml" $SSH_USERNAME@$SSH_HOST:"/tmp/deploy/$STACK_NAME/docker-compose.yml"
+          
+          # Деплой на сервере
+          ssh -p $SSH_PORT $SSH_USERNAME@$SSH_HOST << EOF
+            cd /tmp/deploy/$STACK_NAME
+            if [ -f .env ]; then
+              export \$(cat .env | xargs)
+            fi
+            docker stack deploy -c docker-compose.yml --prune --with-registry-auth $STACK_NAME
+            cd /tmp
+            rm -rf /tmp/deploy/$STACK_NAME
+          EOF
+          
+          # Очистка локальных временных файлов
+          rm -f "/tmp/${STACK_NAME}.env"
+          
+          echo "✓ Stack $STACK_NAME deployed successfully"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/*.env
+          rm -f ~/.ssh/id_rsa
+          rm -f /tmp/ssh_config
