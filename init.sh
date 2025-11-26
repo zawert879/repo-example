@@ -278,52 +278,40 @@ if [ "$REPO_TYPE" = "server" ]; then
         echo -e "${CYAN}Public key:${NC}"
         cat ".ssh-keys/$SSH_KEY_FILE.pub"
         echo ""
-        echo -e "${YELLOW}⚠ Add this public key to your deployment server${NC}"
+        echo -e "${YELLOW}⚠ IMPORTANT: Add this public key to your deployment server${NC}"
         echo ""
         
-        # Шифрование если есть SOPS
-        if [ "$GENERATE_SOPS" = true ] && command -v sops &> /dev/null; then
-            echo -e "${BLUE}Encrypting SSH keys with SOPS...${NC}"
-            
-            export SOPS_AGE_KEY="$PRIVATE_KEY"
-            
-            # Запрос деталей сервера
-            read -p "Enter deployment server IP/hostname: " SSH_HOST_INPUT
-            read -p "Enter SSH username (default: deploy): " SSH_USER_INPUT
-            SSH_USER_INPUT=${SSH_USER_INPUT:-deploy}
-            read -p "Enter SSH port (default: 22): " SSH_PORT_INPUT
-            SSH_PORT_INPUT=${SSH_PORT_INPUT:-22}
-            
-            # Создаем файл для шифрования
-            TEMP_FILE=".ssh-temp-$$"
-            cat > "$TEMP_FILE" << EOF
-SSH_PRIVATE_KEY="$(cat .ssh-keys/$SSH_KEY_FILE)"
-SSH_HOST="$SSH_HOST_INPUT"
-SSH_USERNAME="$SSH_USER_INPUT"
-SSH_PORT="$SSH_PORT_INPUT"
+        # Сохранение приватного ключа в data/data.yml
+        echo -e "${BLUE}Saving private key to data/data.yml...${NC}"
+        
+        mkdir -p data
+        
+        cat > data/data.yml << EOF
+# ИНСТРУКЦИЯ: Заполните данные сервера, затем зашифруйте:
+# PowerShell: .\\scripts\\encrypt-ssh.ps1
+# Bash: ./scripts/encrypt-ssh.sh
+
+SSH_PRIVATE_KEY: |
+$(cat .ssh-keys/$SSH_KEY_FILE | sed 's/^/  /')
+SSH_PUBLIC_KEY: "$(cat .ssh-keys/$SSH_KEY_FILE.pub)"
+SSH_HOST: "192.168.1.100"
+SSH_USERNAME: "deploy"
+SSH_PORT: "22"
 EOF
-            
-            # Шифруем с SOPS
-            if sops -e "$TEMP_FILE" > .ssh.encrypted 2>/dev/null; then
-                rm -f "$TEMP_FILE"
-                rm -rf .ssh-keys
-                echo -e "${GREEN}✓ SSH keys encrypted and stored in .ssh.encrypted${NC}"
-                echo -e "${GREEN}✓ Unencrypted keys removed${NC}"
-            else
-                echo -e "${RED}Error encrypting SSH keys with SOPS${NC}"
-                rm -f "$TEMP_FILE"
-            fi
-            echo -e "${GREEN}✓ Unencrypted keys removed${NC}"
-        else
-            echo -e "${YELLOW}⚠ SSH keys stored unencrypted in .ssh-keys/${NC}"
-            echo -e "${YELLOW}  Run './scripts/encrypt-ssh.sh' to encrypt them later${NC}"
-            
-            # Добавление в .gitignore
-            if ! grep -q ".ssh-keys/" .gitignore; then
-                echo -e "\n# SSH keys (unencrypted)\n.ssh-keys/" >> .gitignore
-                echo -e "${GREEN}✓ .ssh-keys/ added to .gitignore${NC}"
-            fi
-        fi
+        
+        echo -e "${GREEN}✓ Private key saved to data/data.yml${NC}"
+        echo ""
+        echo -e "${CYAN}Next steps:${NC}"
+        echo "  1. Edit data/data.yml and update SSH_HOST, SSH_USERNAME, SSH_PORT"
+        echo "  2. Add public key to your server (see above)"
+        echo "  3. Run: ./scripts/encrypt-ssh.sh"
+        echo "  4. Delete data/ folder contents"
+        echo ""
+        
+        # Удаляем .ssh-keys после сохранения в data/
+        rm -rf .ssh-keys
+        echo -e "${GREEN}✓ Temporary .ssh-keys/ removed${NC}"
+
     else
         echo -e "${YELLOW}⚠ Skipping SSH key generation${NC}"
     fi
@@ -646,7 +634,51 @@ EOF
     echo "  3. Push to GitHub and start developing!"
     echo ""
     echo -e "${CYAN}Deployment target: ${YELLOW}$DEPLOY_REPO${NC}"
+    
+    # Очистка после инициализации
+    echo ""
+    echo -e "${BLUE}Cleaning up initialization files...${NC}"
+    
+    # Удаление тестов
+    if [ -d "tests" ]; then
+        rm -rf tests
+        echo -e "${GREEN}✓ Removed tests/ directory${NC}"
+    fi
+    
+    # Удаление скриптов запуска тестов
+    if [ -f "run-tests.ps1" ]; then
+        rm -f run-tests.ps1
+        echo -e "${GREEN}✓ Removed run-tests.ps1${NC}"
+    fi
+    
+    if [ -f "run-tests.sh" ]; then
+        rm -f run-tests.sh
+        echo -e "${GREEN}✓ Removed run-tests.sh${NC}"
+    fi
+    
+    # Удаление workflow тестирования
+    if [ -f ".github/workflows/test-init.yml" ]; then
+        rm -f .github/workflows/test-init.yml
+        echo -e "${GREEN}✓ Removed .github/workflows/test-init.yml${NC}"
+    fi
+    
+    # Удаление init.ps1
+    if [ -f "init.ps1" ]; then
+        rm -f init.ps1
+        echo -e "${GREEN}✓ Removed init.ps1${NC}"
+    fi
+    
+    echo -e "${YELLOW}⚠ This script (init.sh) will be deleted in 2 seconds...${NC}"
 fi
 
 echo ""
 echo -e "${BLUE}Initialization complete! 🎉${NC}"
+
+# Самоудаление init.sh в конце
+SELF_SCRIPT="$0"
+if [ -f "$SELF_SCRIPT" ]; then
+    echo -e "${YELLOW}Cleaning up init.sh...${NC}"
+    sleep 2
+    rm -f "$SELF_SCRIPT"
+    echo -e "${GREEN}✓ init.sh removed${NC}"
+fi

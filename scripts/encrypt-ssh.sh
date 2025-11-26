@@ -10,10 +10,11 @@ NC='\033[0m'
 echo -e "${BLUE}=== Encrypt SSH Keys ===${NC}"
 echo ""
 
-# Проверка наличия незашифрованных ключей
-if [ ! -d ".ssh-keys" ]; then
-    echo -e "${RED}Error: .ssh-keys directory not found${NC}"
-    echo "Nothing to encrypt"
+# Проверка наличия data/data.yml
+if [ ! -f "data/data.yml" ]; then
+    echo -e "${RED}Error: data/data.yml not found${NC}"
+    echo "Please create and fill data/data.yml first"
+    echo "See data/README.md for instructions"
     exit 1
 fi
 
@@ -28,64 +29,40 @@ if [ -z "$SOPS_AGE_KEY" ]; then
     if [ -f ".keys/age.key" ]; then
         export SOPS_AGE_KEY=$(cat .keys/age.key | grep "AGE-SECRET-KEY" | xargs)
         echo -e "${GREEN}✓ Using Age key from .keys/age.key${NC}"
-    else
+    elif [ -f "secrets.env" ]; then
+        export SOPS_AGE_KEY=$(grep "SOPS_AGE_KEY=" secrets.env | cut -d'=' -f2 | xargs)
+        if [ -n "$SOPS_AGE_KEY" ]; then
+            echo -e "${GREEN}✓ Using Age key from secrets.env${NC}"
+        fi
+    fi
+    
+    if [ -z "$SOPS_AGE_KEY" ]; then
         echo -e "${RED}Error: SOPS_AGE_KEY not set${NC}"
         echo "Set it with: export SOPS_AGE_KEY='your-key'"
-        echo "Or place it in .keys/age.key"
+        echo "Or place it in .keys/age.key or secrets.env"
         exit 1
     fi
 fi
 
-# Проверка наличия ключей
-if [ ! -f ".ssh-keys/id_ed25519" ]; then
-    echo -e "${RED}Error: SSH private key not found in .ssh-keys/${NC}"
+echo -e "${BLUE}Reading data from data/data.yml...${NC}"
+
+# Проверка содержимого data.yml
+if grep -q "\[Вставьте содержимое" data/data.yml; then
+    echo -e "${RED}Error: data/data.yml contains placeholder text${NC}"
+    echo "Please fill in actual SSH data before encrypting"
+    echo "See data/README.md for instructions"
     exit 1
 fi
 
-echo -e "${BLUE}Reading SSH keys...${NC}"
-
-# Запрос дополнительной информации
-read -p "SSH Host (IP or domain): " SSH_HOST
-read -p "SSH Username: " SSH_USERNAME
-read -p "SSH Port [22]: " SSH_PORT
-SSH_PORT=${SSH_PORT:-22}
-
 echo ""
-echo -e "${BLUE}Creating encrypted SSH configuration...${NC}"
+echo -e "${BLUE}Encrypting data/data.yml to .ssh.encrypted...${NC}"
 
-# Создаем временный файл
-cat > .ssh-temp << EOF
-SSH_PRIVATE_KEY="$(cat .ssh-keys/id_ed25519)"
-SSH_HOST="$SSH_HOST"
-SSH_USERNAME="$SSH_USERNAME"
-SSH_PORT="$SSH_PORT"
-EOF
-
-# Шифруем
-sops -e .ssh-temp > .ssh.encrypted
-
-# Удаляем временный файл
-rm -f .ssh-temp
-
-echo -e "${GREEN}✓ SSH configuration encrypted${NC}"
-echo ""
-
-# Удаляем незашифрованные ключи
-echo -e "${YELLOW}Removing unencrypted SSH keys...${NC}"
-read -p "Are you sure you want to delete .ssh-keys/ directory? [y/N]: " confirm
-
-if [[ $confirm =~ ^[Yy]$ ]]; then
-    rm -rf .ssh-keys
-    echo -e "${GREEN}✓ Unencrypted keys removed${NC}"
-    
-    # Удаляем из .gitignore если там есть
-    if [ -f ".gitignore" ]; then
-        sed -i.bak '/\.ssh-keys\//d' .gitignore
-        rm -f .gitignore.bak
-    fi
+# Шифруем data.yml напрямую
+if sops -e data/data.yml > .ssh.encrypted; then
+    echo -e "${GREEN}✓ SSH configuration encrypted successfully${NC}"
 else
-    echo -e "${YELLOW}⚠ Unencrypted keys kept in .ssh-keys/${NC}"
-    echo -e "${YELLOW}  Remember to delete them manually and remove from .gitignore${NC}"
+    echo -e "${RED}Error: Failed to encrypt data.yml${NC}"
+    exit 1
 fi
 
 echo ""
@@ -96,11 +73,10 @@ echo ""
 echo -e "${CYAN}Next steps:${NC}"
 echo "  1. Review encrypted file: sops .ssh.encrypted"
 echo "  2. Commit .ssh.encrypted to git"
-echo "  3. Add SSH public key to your server"
+echo "  3. Clean up data directory: rm -rf data/*"
 echo ""
-echo -e "${YELLOW}Public key (add this to your server):${NC}"
-if [ -f ".ssh-keys/id_ed25519.pub" ]; then
-    cat .ssh-keys/id_ed25519.pub
-else
-    echo "(Public key was already removed)"
-fi
+echo -e "${YELLOW}⚠ IMPORTANT: Delete data/ contents after verification!${NC}"
+echo "  rm -rf data/*"
+echo ""
+echo -e "${CYAN}To decrypt and view:${NC}"
+echo "  sops .ssh.encrypted"

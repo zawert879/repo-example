@@ -263,57 +263,43 @@ if ($repoType -eq "server") {
         Write-ColorOutput Cyan "Public key:"
         Get-Content ".ssh-keys\$sshKeyFile.pub"
         Write-Output ""
-        Write-ColorOutput Yellow "⚠ Add this public key to your deployment server"
+        Write-ColorOutput Yellow "⚠ IMPORTANT: Add this public key to your deployment server"
         Write-Output ""
         
-        # Шифрование если есть SOPS
-        if ($generateSops -and (Get-Command sops -ErrorAction SilentlyContinue)) {
-            Write-ColorOutput Blue "Encrypting SSH keys with SOPS..."
-            
-            $env:SOPS_AGE_KEY = $privateKey
-            
-            # Запрос деталей сервера
-            $sshHost = Read-Host "Enter deployment server IP/hostname"
-            $sshUser = Read-Host "Enter SSH username (default: deploy)"
-            if ([string]::IsNullOrEmpty($sshUser)) { $sshUser = "deploy" }
-            $sshPort = Read-Host "Enter SSH port (default: 22)"
-            if ([string]::IsNullOrEmpty($sshPort)) { $sshPort = "22" }
-            
-            $sshPrivate = Get-Content ".ssh-keys\$sshKeyFile" -Raw
-            $sshContent = @"
-SSH_PRIVATE_KEY="$sshPrivate"
-SSH_HOST="$sshHost"
-SSH_USERNAME="$sshUser"
-SSH_PORT="$sshPort"
+        # Сохранение приватного ключа в data/data.yml
+        Write-ColorOutput Blue "Saving private key to data/data.yml..."
+        
+        New-Item -ItemType Directory -Path "data" -Force | Out-Null
+        
+        $sshPrivateKey = Get-Content ".ssh-keys\$sshKeyFile" -Raw
+        $sshPublicKey = Get-Content ".ssh-keys\$sshKeyFile.pub" -Raw
+        $dataYmlContent = @"
+# ИНСТРУКЦИЯ: Заполните данные сервера, затем зашифруйте:
+# PowerShell: .\scripts\encrypt-ssh.ps1
+# Bash: ./scripts/encrypt-ssh.sh
+
+SSH_PRIVATE_KEY: |
+$sshPrivateKey
+SSH_PUBLIC_KEY: "$sshPublicKey"
+SSH_HOST: "192.168.1.100"
+SSH_USERNAME: "deploy"
+SSH_PORT: "22"
 "@
-            
-            # Создаем временный файл и шифруем
-            $tempFile = ".ssh-temp-" + (Get-Random)
-            $sshContent | Out-File $tempFile -Encoding UTF8 -NoNewline
-            
-            # Шифруем с SOPS
-            $encryptedContent = sops -e $tempFile 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $encryptedContent | Out-File ".ssh.encrypted" -Encoding UTF8
-                Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-                Remove-Item ".ssh-keys" -Recurse -Force -ErrorAction SilentlyContinue
-                Write-ColorOutput Green "✓ SSH keys encrypted and stored in .ssh.encrypted"
-                Write-ColorOutput Green "✓ Unencrypted keys removed"
-            } else {
-                Write-ColorOutput Red "Error encrypting SSH keys with SOPS"
-                Write-ColorOutput Yellow "Error: $encryptedContent"
-                Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-            }
-        } else {
-            Write-ColorOutput Yellow "⚠ SSH keys stored unencrypted in .ssh-keys\"
-            Write-ColorOutput Yellow "  Run '.\scripts\encrypt-ssh.ps1' to encrypt them later"
-            
-            $gitignoreContent = Get-Content ".gitignore" -Raw
-            if ($gitignoreContent -notmatch "\.ssh-keys/") {
-                Add-Content ".gitignore" "`n# SSH keys (unencrypted)`n.ssh-keys/"
-                Write-ColorOutput Green "✓ .ssh-keys/ added to .gitignore"
-            }
-        }
+        
+        $dataYmlContent | Out-File "data\data.yml" -Encoding UTF8 -NoNewline
+        Write-ColorOutput Green "✓ Private key saved to data/data.yml"
+        Write-Output ""
+        Write-ColorOutput Cyan "Next steps:"
+        Write-Output "  1. Edit data/data.yml and update SSH_HOST, SSH_USERNAME, SSH_PORT"
+        Write-Output "  2. Add public key to your server (see above)"
+        Write-Output "  3. Run: .\scripts\encrypt-ssh.ps1"
+        Write-Output "  4. Delete data/ folder contents"
+        Write-Output ""
+        
+        # Удаляем .ssh-keys после сохранения в data/
+        Remove-Item ".ssh-keys" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-ColorOutput Green "✓ Temporary .ssh-keys/ removed"
+
     } else {
         Write-ColorOutput Yellow "⚠ Skipping SSH key generation"
         Write-ColorOutput Yellow "  You can generate SSH keys later with scripts\encrypt-ssh.ps1"
@@ -627,7 +613,52 @@ Example: ``20251126-143022-a3f5c7b``
     Write-Output ""
     Write-ColorOutput Cyan "Deployment target: " -NoNewline
     Write-ColorOutput Yellow $deployRepo
+    
+    # Очистка после инициализации
+    Write-Output ""
+    Write-ColorOutput Blue "Cleaning up initialization files..."
+    
+    # Удаление тестов
+    if (Test-Path "tests") {
+        Remove-Item "tests" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-ColorOutput Green "✓ Removed tests/ directory"
+    }
+    
+    # Удаление скриптов запуска тестов
+    if (Test-Path "run-tests.ps1") {
+        Remove-Item "run-tests.ps1" -Force -ErrorAction SilentlyContinue
+        Write-ColorOutput Green "✓ Removed run-tests.ps1"
+    }
+    
+    if (Test-Path "run-tests.sh") {
+        Remove-Item "run-tests.sh" -Force -ErrorAction SilentlyContinue
+        Write-ColorOutput Green "✓ Removed run-tests.sh"
+    }
+    
+    # Удаление workflow тестирования
+    if (Test-Path ".github\workflows\test-init.yml") {
+        Remove-Item ".github\workflows\test-init.yml" -Force -ErrorAction SilentlyContinue
+        Write-ColorOutput Green "✓ Removed .github/workflows/test-init.yml"
+    }
+    
+    # Удаление init скриптов
+    if (Test-Path "init.sh") {
+        Remove-Item "init.sh" -Force -ErrorAction SilentlyContinue
+        Write-ColorOutput Green "✓ Removed init.sh"
+    }
+    
+    Write-ColorOutput Yellow "⚠ This script (init.ps1) will be deleted after you close this window"
+    Write-Output ""
 }
 
 Write-Output ""
 Write-ColorOutput Blue "Initialization complete! 🎉"
+
+# Самоудаление init.ps1 в конце
+$selfScript = $MyInvocation.MyCommand.Path
+if ($selfScript) {
+    Write-ColorOutput Yellow "Cleaning up init.ps1..."
+    Start-Sleep -Seconds 2
+    Remove-Item $selfScript -Force -ErrorAction SilentlyContinue
+    Write-ColorOutput Green "✓ init.ps1 removed"
+}

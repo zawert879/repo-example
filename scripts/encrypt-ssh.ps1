@@ -12,10 +12,11 @@ function Write-ColorOutput($ForegroundColor, $Message) {
 Write-ColorOutput Blue "=== Encrypt SSH Keys ==="
 Write-Output ""
 
-# Проверка наличия незашифрованных ключей
-if (-not (Test-Path ".ssh-keys")) {
-    Write-ColorOutput Red "Error: .ssh-keys directory not found"
-    Write-Output "Nothing to encrypt"
+# Проверка наличия data/data.yml
+if (-not (Test-Path "data\data.yml")) {
+    Write-ColorOutput Red "Error: data\data.yml not found"
+    Write-Output "Please create and fill data\data.yml first"
+    Write-Output "See data\README.md for instructions"
     exit 1
 }
 
@@ -30,67 +31,44 @@ if (-not $env:SOPS_AGE_KEY) {
     if (Test-Path ".keys\age.key") {
         $env:SOPS_AGE_KEY = (Get-Content ".keys\age.key" | Select-String "AGE-SECRET-KEY").ToString().Trim()
         Write-ColorOutput Green "✓ Using Age key from .keys\age.key"
-    } else {
+    } elseif (Test-Path "secrets.env") {
+        $ageKey = Get-Content "secrets.env" | Select-String "SOPS_AGE_KEY=" | ForEach-Object { $_ -replace "SOPS_AGE_KEY=", "" }
+        if ($ageKey) {
+            $env:SOPS_AGE_KEY = $ageKey.Trim()
+            Write-ColorOutput Green "✓ Using Age key from secrets.env"
+        }
+    }
+    
+    if (-not $env:SOPS_AGE_KEY) {
         Write-ColorOutput Red "Error: SOPS_AGE_KEY not set"
         Write-Output "Set it with: `$env:SOPS_AGE_KEY='your-key'"
-        Write-Output "Or place it in .keys\age.key"
+        Write-Output "Or place it in .keys\age.key or secrets.env"
         exit 1
     }
 }
 
-# Проверка наличия ключей
-if (-not (Test-Path ".ssh-keys\id_ed25519")) {
-    Write-ColorOutput Red "Error: SSH private key not found in .ssh-keys\"
+Write-ColorOutput Blue "Reading data from data\data.yml..."
+
+# Проверка содержимого data.yml
+$dataContent = Get-Content "data\data.yml" -Raw
+if ($dataContent -match '\[Вставьте содержимое') {
+    Write-ColorOutput Red "Error: data\data.yml contains placeholder text"
+    Write-Output "Please fill in actual SSH data before encrypting"
+    Write-Output "See data\README.md for instructions"
     exit 1
 }
 
-Write-ColorOutput Blue "Reading SSH keys..."
-
-# Запрос дополнительной информации
-$sshHost = Read-Host "SSH Host (IP or domain)"
-$sshUsername = Read-Host "SSH Username"
-$sshPort = Read-Host "SSH Port [22]"
-if ([string]::IsNullOrWhiteSpace($sshPort)) { $sshPort = "22" }
-
 Write-Output ""
-Write-ColorOutput Blue "Creating encrypted SSH configuration..."
+Write-ColorOutput Blue "Encrypting data\data.yml to .ssh.encrypted..."
 
-# Создаем временный файл
-$sshPrivate = Get-Content ".ssh-keys\id_ed25519" -Raw
-$sshContent = @"
-SSH_PRIVATE_KEY="$sshPrivate"
-SSH_HOST="$sshHost"
-SSH_USERNAME="$sshUsername"
-SSH_PORT="$sshPort"
-"@
-
-$sshContent | Out-File ".ssh-temp" -Encoding UTF8 -NoNewline
-
-# Шифруем
-sops -e .ssh-temp | Out-File ".ssh.encrypted" -Encoding UTF8
-
-# Удаляем временный файл
-Remove-Item ".ssh-temp" -Force
-
-Write-ColorOutput Green "✓ SSH configuration encrypted"
-Write-Output ""
-
-# Удаляем незашифрованные ключи
-Write-ColorOutput Yellow "Removing unencrypted SSH keys..."
-$confirm = Read-Host "Are you sure you want to delete .ssh-keys\ directory? [y/N]"
-
-if ($confirm -match '^[Yy]$') {
-    Remove-Item ".ssh-keys" -Recurse -Force
-    Write-ColorOutput Green "✓ Unencrypted keys removed"
-    
-    # Удаляем из .gitignore
-    if (Test-Path ".gitignore") {
-        $gitignoreContent = Get-Content ".gitignore" | Where-Object { $_ -notmatch "\.ssh-keys/" }
-        $gitignoreContent | Set-Content ".gitignore"
-    }
-} else {
-    Write-ColorOutput Yellow "⚠ Unencrypted keys kept in .ssh-keys\"
-    Write-ColorOutput Yellow "  Remember to delete them manually and remove from .gitignore"
+# Шифруем data.yml напрямую
+try {
+    sops -e "data\data.yml" | Out-File ".ssh.encrypted" -Encoding UTF8
+    Write-ColorOutput Green "✓ SSH configuration encrypted successfully"
+} catch {
+    Write-ColorOutput Red "Error: Failed to encrypt data.yml"
+    Write-Output $_.Exception.Message
+    exit 1
 }
 
 Write-Output ""
@@ -101,11 +79,9 @@ Write-Output ""
 Write-ColorOutput Cyan "Next steps:"
 Write-Output "  1. Review encrypted file: sops .ssh.encrypted"
 Write-Output "  2. Commit .ssh.encrypted to git"
-Write-Output "  3. Add SSH public key to your server"
+Write-Output "  3. Clean up data directory: rm -rf data\*"
 Write-Output ""
-Write-ColorOutput Yellow "Public key (add this to your server):"
-if (Test-Path ".ssh-keys\id_ed25519.pub") {
-    Get-Content ".ssh-keys\id_ed25519.pub"
-} else {
-    Write-Output "(Public key was already removed)"
+Write-ColorOutput Yellow "⚠ IMPORTANT: Delete data\ contents after verification!"
+Write-Output "  PowerShell: Remove-Item data\* -Recurse -Force"
+Write-Output "  Bash: rm -rf data/*"
 }
