@@ -272,14 +272,18 @@ if ($repoType -eq "server") {
         New-Item -ItemType Directory -Path "data" -Force | Out-Null
         
         $sshPrivateKey = Get-Content ".ssh-keys\$sshKeyFile" -Raw
-        $sshPublicKey = Get-Content ".ssh-keys\$sshKeyFile.pub" -Raw
+        $sshPublicKey = (Get-Content ".ssh-keys\$sshKeyFile.pub" -Raw).Trim()
+        
+        # Добавляем отступы в 2 пробела для каждой строки приватного ключа
+        $sshPrivateKeyIndented = ($sshPrivateKey -split "`n" | ForEach-Object { "  $_" }) -join "`n"
+        
         $dataYmlContent = @"
 # ИНСТРУКЦИЯ: Заполните данные сервера, затем зашифруйте:
 # PowerShell: .\scripts\encrypt-ssh.ps1
 # Bash: ./scripts/encrypt-ssh.sh
 
 SSH_PRIVATE_KEY: |
-$sshPrivateKey
+$sshPrivateKeyIndented
 SSH_PUBLIC_KEY: "$sshPublicKey"
 SSH_HOST: "192.168.1.100"
 SSH_USERNAME: "deploy"

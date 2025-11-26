@@ -1,4 +1,8 @@
 creation_rules:
+  # Encrypt data.yml (SSH keys before encryption)
+  - path_regex: data\\data\.yml$|data/data\.yml$
+    age: >-
+      age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   # Encrypt .env files and .env.encrypted
   - path_regex: \.env\.encrypted$|\.env$|secrets\.env$
     age: >-

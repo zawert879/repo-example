@@ -293,7 +293,7 @@ if [ "$REPO_TYPE" = "server" ]; then
 
 SSH_PRIVATE_KEY: |
 $(cat .ssh-keys/$SSH_KEY_FILE | sed 's/^/  /')
-SSH_PUBLIC_KEY: "$(cat .ssh-keys/$SSH_KEY_FILE.pub)"
+SSH_PUBLIC_KEY: "$(cat .ssh-keys/$SSH_KEY_FILE.pub | tr -d '\n')"
 SSH_HOST: "192.168.1.100"
 SSH_USERNAME: "deploy"
 SSH_PORT: "22"
