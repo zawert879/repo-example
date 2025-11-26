@@ -45,28 +45,28 @@ if [ -d "stacks" ]; then
     done < <(find stacks -type f -name "*.encrypted.*")
 fi
 
-# Поиск .ssh.encrypted
-if [ -f ".ssh.encrypted" ]; then
-    encrypted_files+=(".ssh.encrypted")
-fi
-
-# Поиск .env.encrypted
-if [ -f ".env.encrypted" ]; then
-    encrypted_files+=(".env.encrypted")
-fi
-
-# Поиск secrets.encrypted.*
+# Поиск .ssh.encrypted* (.ssh.encrypted, .ssh.encrypted.yml, .ssh.encrypted.env)
 while IFS= read -r file; do
-    encrypted_files+=("$file")
+    [ -n "$file" ] && encrypted_files+=("$file")
+done < <(find . -maxdepth 1 -type f -regex "\./\.ssh\.encrypted\(\.[^.]*\)?$")
+
+# Поиск .env.encrypted* (.env.encrypted, .env.encrypted.yml, .env.encrypted.env)
+while IFS= read -r file; do
+    [ -n "$file" ] && encrypted_files+=("$file")
+done < <(find . -maxdepth 1 -type f -regex "\./\.env\.encrypted\(\.[^.]*\)?$")
+
+# Поиск secrets.encrypted.* (secrets.encrypted.yml, secrets.encrypted.env и т.д.)
+while IFS= read -r file; do
+    [ -n "$file" ] && encrypted_files+=("$file")
 done < <(find . -maxdepth 1 -type f -name "secrets.encrypted.*")
 
 if [ ${#encrypted_files[@]} -eq 0 ]; then
     echo -e "${YELLOW}No encrypted files found${NC}"
     echo "Searched in:"
-    echo "  - stacks/"
-    echo "  - .ssh.encrypted"
-    echo "  - .env.encrypted"
-    echo "  - secrets.encrypted.*"
+    echo "  - stacks/ (*.encrypted.*)"
+    echo "  - .ssh.encrypted[.yml|.env]"
+    echo "  - .env.encrypted[.yml|.env]"
+    echo "  - secrets.encrypted.[yml|env]"
     exit 0
 fi
 

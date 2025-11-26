@@ -45,29 +45,31 @@ if (Test-Path "stacks") {
     $encryptedFiles += $stackFiles
 }
 
-# Поиск .ssh.encrypted
-if (Test-Path ".ssh.encrypted") {
-    $encryptedFiles += Get-Item ".ssh.encrypted"
+# Поиск .ssh.encrypted* (.ssh.encrypted, .ssh.encrypted.yml, .ssh.encrypted.env)
+$sshFiles = Get-ChildItem -Path "." -File | Where-Object { 
+    $_.Name -match "^\.ssh\.encrypted(\.(yml|yaml|env))?$" 
 }
+$encryptedFiles += $sshFiles
 
-# Поиск .env.encrypted
-if (Test-Path ".env.encrypted") {
-    $encryptedFiles += Get-Item ".env.encrypted"
+# Поиск .env.encrypted* (.env.encrypted, .env.encrypted.yml, .env.encrypted.env)
+$envFiles = Get-ChildItem -Path "." -File | Where-Object { 
+    $_.Name -match "^\.env\.encrypted(\.(yml|yaml|env))?$" 
 }
+$encryptedFiles += $envFiles
 
-# Поиск secrets.encrypted.*
+# Поиск secrets.encrypted.* (secrets.encrypted.yml, secrets.encrypted.env и т.д.)
 $secretFiles = Get-ChildItem -Path "." -File | Where-Object { 
-    $_.Name -match "^secrets\.encrypted\." 
+    $_.Name -match "^secrets\.encrypted\.(yml|yaml|env)" 
 }
 $encryptedFiles += $secretFiles
 
 if ($encryptedFiles.Count -eq 0) {
     Write-ColorOutput Yellow "No encrypted files found"
     Write-Output "Searched in:"
-    Write-Output "  - stacks/"
-    Write-Output "  - .ssh.encrypted"
-    Write-Output "  - .env.encrypted"
-    Write-Output "  - secrets.encrypted.*"
+    Write-Output "  - stacks/ (*.encrypted.*)"
+    Write-Output "  - .ssh.encrypted[.yml|.env]"
+    Write-Output "  - .env.encrypted[.yml|.env]"
+    Write-Output "  - secrets.encrypted.[yml|env]"
     exit 0
 }
 
