@@ -4,13 +4,13 @@ creation_rules:
     age: >-
       age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   # Encrypt .env files and .env.encrypted
-  - path_regex: \.env\.encrypted$|\.env$|secrets\.env$
+  - path_regex: \.env\.encrypted\.(yml|yaml|env)$|\.env\.encrypted$|\.env$|secrets\.env$
     age: >-
       age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   # Encrypt SSH keys and .ssh.encrypted
-  - path_regex: \.ssh\.encrypted$|\.ssh$
+  - path_regex: \.ssh\.encrypted\.(yml|yaml|env)$|\.ssh\.encrypted$|\.ssh$
     age: >-
       age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  - path_regex: secrets\.encrypted\..*
+  - path_regex: secrets\.encrypted\.(yml|yaml|env)$|secrets\.encrypted\..*
     age: >-
       age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
