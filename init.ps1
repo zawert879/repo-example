@@ -182,8 +182,8 @@ if ($repoType -eq "server") {
     
     # 3. SOPS Age Key
     Write-Output ""
-    Write-ColorOutput Blue "[3/7] SOPS Age Key Setup"
-    $generateSops = Ask-YesNo "Do you want to generate a new SOPS Age key?" "N"
+    Write-ColorOutput Blue "[3/7] SOPS Age Key Generation"
+    $generateSops = Ask-YesNo "Do you want to generate a new SOPS Age key?" "Y"
     
     $privateKey = ""
     $publicKey = ""
@@ -228,7 +228,7 @@ if ($repoType -eq "server") {
     # 4. SSH Keys
     Write-Output ""
     Write-ColorOutput Blue "[4/7] SSH Key Setup"
-    $generateSsh = Ask-YesNo "Do you want to generate new SSH keys for deployment?" "N"
+    $generateSsh = Ask-YesNo "Do you want to generate new SSH keys for deployment?" "Y"
     
     if ($generateSsh) {
         # Выбор типа ключа
@@ -312,7 +312,7 @@ SSH_PORT: "22"
     # 5. Удаление .git
     Write-Output ""
     Write-ColorOutput Blue "[5/7] Git Repository"
-    if (Ask-YesNo "Do you want to remove .git directory (start fresh)?" "N") {
+    if (Ask-YesNo "Do you want to remove .git directory (start fresh)?" "Y") {
         Remove-Item -Path ".git" -Recurse -Force
         Write-ColorOutput Green "✓ .git directory removed"
         Write-ColorOutput Yellow "  Run 'git init' to initialize a new repository"

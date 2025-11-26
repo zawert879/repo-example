@@ -195,7 +195,7 @@ if [ "$REPO_TYPE" = "server" ]; then
     echo ""
     echo -e "${BLUE}[3/7] SOPS Age Key Setup${NC}"
     GENERATE_SOPS=false
-    if ask_yes_no "Do you want to generate a new SOPS Age key?"; then
+    if ask_yes_no "Do you want to generate a new SOPS Age key?" "y"; then
         GENERATE_SOPS=true
         
         # Проверка установки age
@@ -243,7 +243,7 @@ if [ "$REPO_TYPE" = "server" ]; then
     echo ""
     echo -e "${BLUE}[4/7] SSH Key Setup${NC}"
     GENERATE_SSH=false
-    if ask_yes_no "Do you want to generate new SSH keys for deployment?"; then
+    if ask_yes_no "Do you want to generate new SSH keys for deployment?" "y"; then
         GENERATE_SSH=true
         
         # Выбор типа ключа
@@ -319,7 +319,7 @@ EOF
     # 5. Удаление .git
     echo ""
     echo -e "${BLUE}[5/7] Git Repository${NC}"
-    if ask_yes_no "Do you want to remove .git directory (start fresh)?"; then
+    if ask_yes_no "Do you want to remove .git directory (start fresh)?" "y"; thenthen
         rm -rf .git
         echo -e "${GREEN}✓ .git directory removed${NC}"
         echo -e "${YELLOW}  Run 'git init' to initialize a new repository${NC}"
