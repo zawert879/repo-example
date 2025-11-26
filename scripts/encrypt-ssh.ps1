@@ -84,4 +84,3 @@ Write-Output ""
 Write-ColorOutput Yellow "⚠ IMPORTANT: Delete data\ contents after verification!"
 Write-Output "  PowerShell: Remove-Item data\* -Recurse -Force"
 Write-Output "  Bash: rm -rf data/*"
-}

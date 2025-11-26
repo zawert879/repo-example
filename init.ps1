@@ -645,23 +645,23 @@ Example: ``20251126-143022-a3f5c7b``
         Write-ColorOutput Green "✓ Removed .github/workflows/test-init.yml"
     }
     
-    # Удаление init скриптов
-    if (Test-Path "init.sh") {
-        Remove-Item "init.sh" -Force -ErrorAction SilentlyContinue
-        Write-ColorOutput Green "✓ Removed init.sh"
-    }
-    
-    Write-ColorOutput Yellow "⚠ This script (init.ps1) will be deleted after you close this window"
-    Write-Output ""
 }
 
 Write-Output ""
 Write-ColorOutput Blue "Initialization complete! 🎉"
 
-# Самоудаление init.ps1 в конце
+# Удаление init скриптов в самом конце
+Write-Output ""
+Write-ColorOutput Blue "Cleaning up init scripts..."
+
+if (Test-Path "init.sh") {
+    Remove-Item "init.sh" -Force -ErrorAction SilentlyContinue
+    Write-ColorOutput Green "✓ Removed init.sh"
+}
+
 $selfScript = $MyInvocation.MyCommand.Path
 if ($selfScript) {
-    Write-ColorOutput Yellow "Cleaning up init.ps1..."
+    Write-ColorOutput Yellow "Removing init.ps1 in 2 seconds..."
     Start-Sleep -Seconds 2
     Remove-Item $selfScript -Force -ErrorAction SilentlyContinue
     Write-ColorOutput Green "✓ init.ps1 removed"
