@@ -59,11 +59,11 @@ if ($dataContent -match '\[Вставьте содержимое') {
 }
 
 Write-Output ""
-Write-ColorOutput Blue "Encrypting data\data.yml to .ssh.encrypted..."
+Write-ColorOutput Blue "Encrypting data\data.yml to .ssh.encrypted.yml..."
 
 # Шифруем data.yml напрямую
 try {
-    sops -e "data\data.yml" | Out-File ".ssh.encrypted" -Encoding UTF8
+    sops -e "data\data.yml" | Out-File ".ssh.encrypted.yml" -Encoding UTF8
     Write-ColorOutput Green "✓ SSH configuration encrypted successfully"
 } catch {
     Write-ColorOutput Red "Error: Failed to encrypt data.yml"
@@ -77,8 +77,8 @@ Write-ColorOutput Green "  SSH Keys Encrypted Successfully"
 Write-ColorOutput Green "═══════════════════════════════════════"
 Write-Output ""
 Write-ColorOutput Cyan "Next steps:"
-Write-Output "  1. Review encrypted file: sops .ssh.encrypted"
-Write-Output "  2. Commit .ssh.encrypted to git"
+Write-Output "  1. Review encrypted file: sops .ssh.encrypted.yml"
+Write-Output "  2. Commit .ssh.encrypted.yml to git"
 Write-Output "  3. Clean up data directory: rm -rf data\*"
 Write-Output ""
 Write-ColorOutput Yellow "⚠ IMPORTANT: Delete data\ contents after verification!"

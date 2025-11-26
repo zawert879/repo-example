@@ -55,10 +55,10 @@ if grep -q "\[Вставьте содержимое" data/data.yml; then
 fi
 
 echo ""
-echo -e "${BLUE}Encrypting data/data.yml to .ssh.encrypted...${NC}"
+echo -e "${BLUE}Encrypting data/data.yml to .ssh.encrypted.yml...${NC}"
 
 # Шифруем data.yml напрямую
-if sops -e data/data.yml > .ssh.encrypted; then
+if sops -e data/data.yml > .ssh.encrypted.yml; then
     echo -e "${GREEN}✓ SSH configuration encrypted successfully${NC}"
 else
     echo -e "${RED}Error: Failed to encrypt data.yml${NC}"
@@ -71,12 +71,12 @@ echo -e "${GREEN}║   SSH Keys Encrypted Successfully    ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}Next steps:${NC}"
-echo "  1. Review encrypted file: sops .ssh.encrypted"
-echo "  2. Commit .ssh.encrypted to git"
+echo "  1. Review encrypted file: sops .ssh.encrypted.yml"
+echo "  2. Commit .ssh.encrypted.yml to git"
 echo "  3. Clean up data directory: rm -rf data/*"
 echo ""
 echo -e "${YELLOW}⚠ IMPORTANT: Delete data/ contents after verification!${NC}"
 echo "  rm -rf data/*"
 echo ""
 echo -e "${CYAN}To decrypt and view:${NC}"
-echo "  sops .ssh.encrypted"
+echo "  sops .ssh.encrypted.yml"
